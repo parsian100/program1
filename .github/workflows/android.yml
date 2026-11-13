@@ -37,8 +37,12 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install buildozer cython==0.29.36
 
-      - name: Build debug APK
-        run: buildozer -v android debug
+      - name: Build debug APK (auto-accept Android SDK licenses)
+        shell: bash
+        run: |
+          # Buildozer may invoke sdkmanager license prompts in CI.
+          # Feed affirmative responses so the workflow never waits for a terminal.
+          yes | buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
