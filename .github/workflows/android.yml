@@ -3,48 +3,65 @@ name: Build Fandoq Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fandoq-android-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: Build debug APK
     runs-on: ubuntu-22.04
     timeout-minutes: 120
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential git zip unzip autoconf libtool pkg-config \
-            zlib1g-dev libncurses-dev libffi-dev libssl-dev cmake \
-            libltdl-dev
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git zip unzip \
+            autoconf automake libtool pkg-config \
+            zlib1g-dev libncurses-dev libffi-dev libssl-dev \
+            cmake libltdl-dev libsqlite3-dev
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
+          cache: pip
 
-      - name: Install Buildozer
+      - name: Install pinned Python build tools
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install buildozer cython==0.29.36
+          python -m pip install 'buildozer==1.5.0' 'Cython==0.29.36'
 
-      - name: Build debug APK (auto-accept Android SDK licenses)
-        shell: bash
+      - name: Verify project configuration
         run: |
-          # Buildozer may invoke sdkmanager license prompts in CI.
-          # Feed affirmative responses so the workflow never waits for a terminal.
-          yes | buildozer -v android debug
+          test -f buildozer.spec
+          grep -Eq '^android\.accept_sdk_license[[:space:]]*=[[:space:]]*True' buildozer.spec
+
+      - name: Build APK
+        env:
+          CI: '1'
+        run: |
+          buildozer -v android debug
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Fandoq-Android-debug
